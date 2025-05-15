@@ -34,3 +34,18 @@ if not st.session_state.logged_in:
 # Setelah login berhasil
 st.write(f"Selamat datang, {st.session_state.username}!")
 st.write(f"Role Anda: {st.session_state.role}")
+# Menu sidebar sederhana
+menu = st.sidebar.selectbox("Menu", ["Input Penjualan"])
+
+if menu == "Input Penjualan":
+    st.header("Input Penjualan")
+    with st.form("form_penjualan"):
+        tanggal = st.date_input("Tanggal")
+        nama_barang = st.text_input("Nama Barang")
+        jumlah = st.number_input("Jumlah", min_value=1, step=1)
+        total = st.number_input("Total Harga (Rp)", min_value=0, step=100)
+        submit = st.form_submit_button("Simpan Penjualan")
+
+    if submit:
+        st.success(f"Penjualan {jumlah} {nama_barang} pada {tanggal} berhasil disimpan.")
+
