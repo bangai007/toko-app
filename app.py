@@ -99,3 +99,37 @@ st.markdown(f"""
 - **Total Pengeluaran:** Rp {format_rupiah(total_keluar)}  
 - **Saldo:** Rp {format_rupiah(saldo)}
 """)
+st.subheader("Edit Data Keuangan")
+
+if not st.session_state.keuangan.empty:
+    # Buat selectbox untuk pilih baris berdasarkan indeks dan keterangan + tanggal
+    pilihan = st.selectbox(
+        "Pilih catatan yang ingin diedit:",
+        options=st.session_state.keuangan.index,
+        format_func=lambda i: f"{st.session_state.keuangan.at[i, 'Tanggal']} - {st.session_state.keuangan.at[i, 'Keterangan']}"
+    )
+
+    if pilihan is not None:
+        row = st.session_state.keuangan.loc[pilihan]
+
+        with st.form("form_edit_keuangan"):
+            tgl_edit = st.date_input("Tanggal", pd.to_datetime(row["Tanggal"]))
+            ket_edit = st.text_input("Keterangan", row["Keterangan"])
+            masuk_edit_str = st.text_input("Pemasukan (Rp)", format_rupiah(row["Masuk (Rp)"]))
+            keluar_edit_str = st.text_input("Pengeluaran (Rp)", format_rupiah(row["Keluar (Rp)"]))
+            submit_edit = st.form_submit_button("Simpan Perubahan")
+
+        if submit_edit:
+            masuk_edit = parse_rupiah(masuk_edit_str)
+            keluar_edit = parse_rupiah(keluar_edit_str)
+            if not ket_edit:
+                st.error("Keterangan wajib diisi.")
+            elif masuk_edit == 0 and keluar_edit == 0:
+                st.error("Pemasukan atau pengeluaran harus diisi lebih dari 0.")
+            else:
+                # Update data
+                st.session_state.keuangan.at[pilihan, "Tanggal"] = tgl_edit.strftime("%Y-%m-%d")
+                st.session_state.keuangan.at[pilihan, "Keterangan"] = ket_edit
+                st.session_state.keuangan.at[pilihan, "Masuk (Rp)"] = masuk_edit
+                st.session_state.keuangan.at[pilihan, "Keluar (Rp)"] = keluar_edit
+                st.success("Data keuangan berhasil diperbarui.")
