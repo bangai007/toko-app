@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 import datetime
+from io import BytesIO
 
 st.set_page_config(page_title="Manajemen Toko", layout="wide")
-
 st.title("📦 Aplikasi Manajemen Toko Sederhana")
 
-# Inisialisasi data di session state
 if "keuangan" not in st.session_state:
     st.session_state.keuangan = []
 if "stok" not in st.session_state:
@@ -14,10 +13,17 @@ if "stok" not in st.session_state:
 if "karyawan" not in st.session_state:
     st.session_state.karyawan = []
 
-# Sidebar menu
 menu = st.sidebar.radio("Menu", ["Keuangan", "Stok Barang", "Karyawan", "Laporan"])
 
-# Halaman Keuangan
+# Fungsi ekspor ke Excel
+def download_excel(data, filename):
+    output = BytesIO()
+    df = pd.DataFrame(data)
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Data")
+    st.download_button("📥 Download ke Excel", output.getvalue(), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# KEUANGAN
 if menu == "Keuangan":
     st.header("💰 Catatan Keuangan Harian")
     with st.form("form_keuangan"):
@@ -40,8 +46,10 @@ if menu == "Keuangan":
     st.subheader("Data Keuangan")
     df_keuangan = pd.DataFrame(st.session_state.keuangan)
     st.dataframe(df_keuangan)
+    if df_keuangan.shape[0] > 0:
+        download_excel(st.session_state.keuangan, "keuangan.xlsx")
 
-# Halaman Stok Barang
+# STOK
 elif menu == "Stok Barang":
     st.header("📦 Catatan Stok Barang")
     with st.form("form_stok"):
@@ -68,8 +76,10 @@ elif menu == "Stok Barang":
     st.subheader("Data Stok Barang")
     df_stok = pd.DataFrame(st.session_state.stok)
     st.dataframe(df_stok)
+    if df_stok.shape[0] > 0:
+        download_excel(st.session_state.stok, "stok_barang.xlsx")
 
-# Halaman Karyawan
+# KARYAWAN
 elif menu == "Karyawan":
     st.header("👨‍💼 Catatan Karyawan")
     with st.form("form_karyawan"):
@@ -94,8 +104,10 @@ elif menu == "Karyawan":
     st.subheader("Data Karyawan")
     df_karyawan = pd.DataFrame(st.session_state.karyawan)
     st.dataframe(df_karyawan)
+    if df_karyawan.shape[0] > 0:
+        download_excel(st.session_state.karyawan, "karyawan.xlsx")
 
-# Halaman Laporan
+# LAPORAN
 elif menu == "Laporan":
     st.header("📊 Laporan Ringkas")
     if st.session_state.keuangan:
