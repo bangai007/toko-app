@@ -28,7 +28,7 @@ if not st.session_state.logged_in:
     st.session_state.username = username
     st.session_state.role = user["role"]
     st.success(f"Selamat datang, {username}!")
-    st.experimental_rerun()  
+    st.experimental_rerun()  # <--- ini biar langsung masuk menu setelah login
 
         else:
             st.error("Username atau password salah.")
