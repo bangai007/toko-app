@@ -57,25 +57,42 @@ if menu == "Input Penjualan":
     st.download_button("Download Penjualan Excel", export_excel(st.session_state.penjualan_data), file_name="penjualan.xlsx")
 
 # --- Halaman Stok Barang ---
+# --- Halaman Stok Barang ---
 elif menu == "Stok Barang":
     st.title("Manajemen Stok Barang")
+
     with st.form("form_stok"):
         tanggal = st.date_input("Tanggal Input", datetime.today())
         nama_barang = st.text_input("Nama Barang Baru")
-        masuk = st.number_input("Jumlah Masuk", min_value=1, step=1)
+        masuk = st.number_input("Jumlah Masuk", min_value=0, step=1)
         simpan = st.form_submit_button("Simpan")
 
-    if simpan and nama_barang:
-        tanggal_str = tanggal.strftime("%Y-%m-%d")
-        new_row = pd.DataFrame([[tanggal_str, nama_barang, masuk, 0, masuk]],
-                               columns=st.session_state.stok_data.columns)
-        st.session_state.stok_data = pd.concat([st.session_state.stok_data, new_row], ignore_index=True)
-        st.success("Data stok disimpan.")
+    if simpan:
+        if nama_barang and masuk > 0:
+            tanggal_str = tanggal.strftime("%Y-%m-%d")
+            new_row = {
+                "Tanggal": tanggal_str,
+                "Nama Barang": nama_barang,
+                "Masuk": masuk,
+                "Keluar": 0,
+                "Sisa": masuk
+            }
+            st.session_state.stok_data = pd.concat(
+                [st.session_state.stok_data, pd.DataFrame([new_row])],
+                ignore_index=True
+            )
+            st.success(f"Stok barang '{nama_barang}' berhasil ditambahkan.")
+        else:
+            st.warning("Isi nama barang dan jumlah masuk lebih dari 0.")
 
     st.subheader("Daftar Stok Barang")
     st.dataframe(st.session_state.stok_data)
 
-    st.download_button("Download Stok Excel", export_excel(st.session_state.stok_data), file_name="stok_barang.xlsx")
+    st.download_button(
+        "Download Stok Excel",
+        export_excel(st.session_state.stok_data),
+        file_name="stok_barang.xlsx"
+    )
 
 # --- Halaman Riwayat ---
 elif menu == "Riwayat Penjualan":
