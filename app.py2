@@ -1,0 +1,100 @@
+import streamlit as st
+import pandas as pd
+from datetime import date
+
+st.set_page_config(page_title="Keuangan Harian", layout="wide")
+
+st.title("📊 Laporan Keuangan Toko")
+
+# Inisialisasi penyimpanan
+if "penjualan" not in st.session_state:
+    st.session_state.penjualan = pd.DataFrame(columns=["Tanggal", "Barang", "Jumlah", "Satuan", "Total (Rp)"])
+
+if "keuangan_lain" not in st.session_state:
+    st.session_state.keuangan_lain = pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk (Rp)", "Keluar (Rp)"])
+
+# Fungsi bantu
+def format_rupiah(x):
+    return f"{x:,}".replace(",", ".")
+
+def parse_rupiah(s):
+    try:
+        return int(s.replace(".", ""))
+    except:
+        return 0
+
+# Input data manual: selain penjualan
+st.header("➕ Tambah Catatan Keuangan Lain")
+with st.form("form_keuangan"):
+    tgl = st.date_input("Tanggal", date.today())
+    ket = st.text_input("Keterangan")
+    masuk_str = st.text_input("Pemasukan (Rp)", value="0")
+    keluar_str = st.text_input("Pengeluaran (Rp)", value="0")
+    simpan = st.form_submit_button("Simpan")
+
+if simpan:
+    masuk = parse_rupiah(masuk_str)
+    keluar = parse_rupiah(keluar_str)
+
+    if not ket:
+        st.error("Keterangan harus diisi.")
+    else:
+        new_data = {
+            "Tanggal": tgl.strftime("%Y-%m-%d"),
+            "Keterangan": ket,
+            "Masuk (Rp)": masuk,
+            "Keluar (Rp)": keluar
+        }
+        st.session_state.keuangan_lain = pd.concat(
+            [st.session_state.keuangan_lain, pd.DataFrame([new_data])],
+            ignore_index=True
+        )
+        st.success("Data keuangan berhasil disimpan.")
+        st.experimental_rerun()
+
+# Tampilkan semua data keuangan
+st.subheader("📅 Laporan Harian")
+tanggal_filter = st.date_input("Pilih Tanggal", date.today())
+
+# Penjualan hari ini
+penjualan_today = st.session_state.penjualan
+penjualan_today = penjualan_today[penjualan_today["Tanggal"] == tanggal_filter.strftime("%Y-%m-%d")]
+
+# Keuangan lain hari ini
+keuangan_today = st.session_state.keuangan_lain
+keuangan_today = keuangan_today[keuangan_today["Tanggal"] == tanggal_filter.strftime("%Y-%m-%d")]
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("#### 🧾 Penjualan")
+    if penjualan_today.empty:
+        st.info("Belum ada penjualan.")
+    else:
+        dfjual = penjualan_today.copy()
+        dfjual["Total (Rp)"] = dfjual["Total (Rp)"].apply(format_rupiah)
+        st.dataframe(dfjual, use_container_width=True)
+
+        total_penjualan = penjualan_today["Total (Rp)"].sum()
+        st.success(f"Total Penjualan: Rp {format_rupiah(total_penjualan)}")
+
+with col2:
+    st.markdown("#### 🧾 Pemasukan & Pengeluaran Lain")
+    if keuangan_today.empty:
+        st.info("Belum ada catatan lain.")
+    else:
+        dflake = keuangan_today.copy()
+        dflake["Masuk (Rp)"] = dflake["Masuk (Rp)"].apply(format_rupiah)
+        dflake["Keluar (Rp)"] = dflake["Keluar (Rp)"].apply(format_rupiah)
+        st.dataframe(dflake, use_container_width=True)
+
+        total_masuk = keuangan_today["Masuk (Rp)"].sum()
+        total_keluar = keuangan_today["Keluar (Rp)"].sum()
+        st.success(f"Total Masuk: Rp {format_rupiah(total_masuk)}")
+        st.error(f"Total Keluar: Rp {format_rupiah(total_keluar)}")
+
+# Laba Bersih
+if not penjualan_today.empty or not keuangan_today.empty:
+    laba = total_penjualan + total_masuk - total_keluar
+    st.markdown(f"### 💰 Laba Hari Ini: Rp {format_rupiah(laba)}")
+
