@@ -5,18 +5,19 @@ import io
 
 st.set_page_config(page_title="Aplikasi Kasir & Stok", layout="wide")
 
-# Data login manual (nanti bisa dikembangkan dari file/database)
+# Dummy data user
 USERS = {
     "admin": {"password": "admin123", "role": "admin"},
     "karyawan": {"password": "123", "role": "karyawan"}
 }
 
-# Login Session
+# Setup session login
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
     st.session_state.role = ""
 
+# FORM LOGIN
 if not st.session_state.logged_in:
     st.title("Login Toko")
     username = st.text_input("Username")
@@ -28,85 +29,61 @@ if not st.session_state.logged_in:
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.success(f"Selamat datang, {username}!")
-            st.experimental_rerun()  # <--- langsung reload halaman ke menu utama
+            st.experimental_rerun()
         else:
             st.error("Username atau password salah.")
     st.stop()
 
-# Menu berdasarkan peran
+# Setelah login sukses
 role = st.session_state.role
 if role == "admin":
     menu = st.sidebar.selectbox("Menu", ["Input Penjualan", "Stok Barang", "Riwayat Penjualan"])
 else:
     menu = st.sidebar.selectbox("Menu", ["Input Penjualan"])
 
-
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import io
-
-st.set_page_config(page_title="Aplikasi Kasir & Stok Toko", layout="wide")
-
-# --- Load data dari session_state atau buat baru ---
-if 'stok_data' not in st.session_state:
+# Simpan data stok jika belum ada
+if "stok_data" not in st.session_state:
     st.session_state.stok_data = pd.DataFrame(columns=["Tanggal", "Nama Barang", "Masuk", "Keluar", "Sisa"])
-if 'penjualan_data' not in st.session_state:
-    st.session_state.penjualan_data = pd.DataFrame(columns=["Tanggal", "Nama Barang", "Jumlah", "Harga Satuan", "Total"])
+if "penjualan_data" not in st.session_state:
+    st.session_state.penjualan_data = pd.DataFrame(columns=["Tanggal", "Nama Barang", "Jumlah", "Total"])
 
-# --- Fungsi ekspor ke Excel ---
-def export_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False)
-    return output.getvalue()
-
-# --- Sidebar Menu ---
-# Menu berdasarkan peran
-role = st.session_state.role
-if role == "admin":
-    menu = st.sidebar.selectbox("Menu", ["Input Penjualan", "Stok Barang", "Riwayat Penjualan"])
-else:
-    menu = st.sidebar.selectbox("Menu", ["Input Penjualan"])
-
-# --- Halaman Penjualan ---
+# Menu: Input Penjualan
 if menu == "Input Penjualan":
-    st.title("Input Penjualan Barang")
+    st.title("Input Penjualan")
     with st.form("form_penjualan"):
+        tanggal = st.date_input("Tanggal", datetime.today())
         nama_barang = st.text_input("Nama Barang")
         jumlah = st.number_input("Jumlah", min_value=1, step=1)
-        harga = st.number_input("Harga Satuan", min_value=0, step=100)
-        submit = st.form_submit_button("Simpan Penjualan")
+        total = st.number_input("Total Harga (Rp)", min_value=0, step=100)
+        simpan = st.form_submit_button("Simpan Penjualan")
 
-    if submit and nama_barang and jumlah:
-        total = jumlah * harga
-        tanggal = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if simpan and nama_barang and jumlah:
+        tanggal_str = tanggal.strftime("%Y-%m-%d")
+        new_row = {
+            "Tanggal": tanggal_str,
+            "Nama Barang": nama_barang,
+            "Jumlah": jumlah,
+            "Total": total
+        }
+        st.session_state.penjualan_data = pd.concat(
+            [st.session_state.penjualan_data, pd.DataFrame([new_row])],
+            ignore_index=True
+        )
 
-        # Simpan penjualan
-        new_row = pd.DataFrame([[tanggal, nama_barang, jumlah, harga, total]],
-                               columns=st.session_state.penjualan_data.columns)
-        st.session_state.penjualan_data = pd.concat([st.session_state.penjualan_data, new_row], ignore_index=True)
-
-        # Otomatis kurangi stok
+        # Update stok otomatis
         stok_df = st.session_state.stok_data
-        barang_mask = stok_df["Nama Barang"].str.lower() == nama_barang.lower()
-
-        if barang_mask.any():
-            idx = stok_df[barang_mask].index[-1]
+        match = stok_df["Nama Barang"] == nama_barang
+        if match.any():
+            idx = stok_df[match].index[-1]  # ambil entri terakhir
             stok_df.at[idx, "Keluar"] += jumlah
-            stok_df.at[idx, "Sisa"] = stok_df.at[idx, "Masuk"] - stok_df.at[idx, "Keluar"]
-            st.success(f"Stok untuk '{nama_barang}' dikurangi otomatis.")
-        else:
-            st.warning(f"Barang '{nama_barang}' belum ada di data stok!")
+            stok_df.at[idx, "Sisa"] -= jumlah
+        st.success("Data penjualan disimpan.")
 
-    st.subheader("Riwayat Penjualan Hari Ini")
+    st.subheader("Data Penjualan")
     st.dataframe(st.session_state.penjualan_data)
 
-    st.download_button("Download Penjualan Excel", export_excel(st.session_state.penjualan_data), file_name="penjualan.xlsx")
-
-# --- Halaman Stok Barang ---
-# --- Halaman Stok Barang ---
-elif menu == "Stok Barang":
+# Menu: Stok Barang
+elif menu == "Stok Barang" and role == "admin":
     st.title("Manajemen Stok Barang")
 
     with st.form("form_stok"):
@@ -136,15 +113,7 @@ elif menu == "Stok Barang":
     st.subheader("Daftar Stok Barang")
     st.dataframe(st.session_state.stok_data)
 
-    st.download_button(
-        "Download Stok Excel",
-        export_excel(st.session_state.stok_data),
-        file_name="stok_barang.xlsx"
-    )
-
-# --- Halaman Riwayat ---
-elif menu == "Riwayat Penjualan":
-    st.title("Riwayat Penjualan Lengkap")
+# Menu: Riwayat Penjualan
+elif menu == "Riwayat Penjualan" and role == "admin":
+    st.title("Riwayat Penjualan")
     st.dataframe(st.session_state.penjualan_data)
-    st.download_button("Download Semua Penjualan", export_excel(st.session_state.penjualan_data), file_name="riwayat_penjualan.xlsx")
-
