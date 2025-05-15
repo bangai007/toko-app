@@ -23,16 +23,23 @@ if not st.session_state.logged_in:
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         user = USERS.get(username)
-       if user and user["password"] == password:
-    st.session_state.logged_in = True
-    st.session_state.username = username
-    st.session_state.role = user["role"]
-    st.success(f"Selamat datang, {username}!")
-    st.experimental_rerun()  # <--- ini biar langsung masuk menu setelah login
-
+        if user and user["password"] == password:
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.session_state.role = user["role"]
+            st.success(f"Selamat datang, {username}!")
+            st.experimental_rerun()  # <--- langsung reload halaman ke menu utama
         else:
             st.error("Username atau password salah.")
     st.stop()
+
+# Menu berdasarkan peran
+role = st.session_state.role
+if role == "admin":
+    menu = st.sidebar.selectbox("Menu", ["Input Penjualan", "Stok Barang", "Riwayat Penjualan"])
+else:
+    menu = st.sidebar.selectbox("Menu", ["Input Penjualan"])
+
 
 import streamlit as st
 import pandas as pd
