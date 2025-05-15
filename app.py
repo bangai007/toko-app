@@ -28,7 +28,7 @@ if not st.session_state.logged_in:
     st.session_state.username = username
     st.session_state.role = user["role"]
     st.success(f"Selamat datang, {username}!")
-    st.experimental_rerun()  # << Tambahan baris ini
+    st.experimental_rerun()  
 
         else:
             st.error("Username atau password salah.")
