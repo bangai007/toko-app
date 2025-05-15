@@ -23,12 +23,13 @@ if not st.session_state.logged_in:
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         user = USERS.get(username)
-        if user and user["password"] == password:
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.session_state.role = user["role"]
-            st.success(f"Selamat datang, {username}!")
-            st.experimental_rerun()
+       if user and user["password"] == password:
+    st.session_state.logged_in = True
+    st.session_state.username = username
+    st.session_state.role = user["role"]
+    st.success(f"Selamat datang, {username}!")
+    st.experimental_rerun()  # << Tambahan baris ini
+
         else:
             st.error("Username atau password salah.")
     st.stop()
