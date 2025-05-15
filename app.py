@@ -2,134 +2,123 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-st.set_page_config(page_title="Aplikasi Harga & Keuangan", layout="wide")
+st.set_page_config(page_title="Aplikasi Toko", layout="wide")
 
-st.title("Aplikasi Daftar Harga & Keuangan Harian")
+st.title("🛒 Aplikasi Toko Sederhana")
 
-# Fungsi bantu parsing rupiah dari string dengan titik ribuan
+# Inisialisasi data
+if "barang" not in st.session_state:
+    st.session_state.barang = pd.DataFrame(columns=["Nama", "Stok (pcs)", "Harga per pcs"])
+
+if "penjualan" not in st.session_state:
+    st.session_state.penjualan = pd.DataFrame(columns=["Tanggal", "Barang", "Jumlah", "Satuan", "Total (Rp)"])
+
+# Konversi satuan ke pcs
+konversi_satuan = {
+    "pcs": 1,
+    "pak": 10,
+    "lusin": 12,
+    "renteng": 6,
+    "dus": 40
+}
+
+def format_rupiah(x):
+    return f"{x:,}".replace(",", ".")
+
 def parse_rupiah(s):
     try:
         return int(s.replace(".", ""))
     except:
         return 0
 
-# Fungsi format angka jadi string dengan titik ribuan
-def format_rupiah(x):
-    return f"{x:,}".replace(",", ".")
+st.header("📦 Tambah Barang")
+with st.form("form_barang"):
+    nama = st.text_input("Nama Barang", key="nama_barang")
+    stok = st.number_input("Stok Awal (pcs)", min_value=0, step=1, key="stok_barang")
+    harga_str = st.text_input("Harga per pcs (Rp)", key="harga_barang", placeholder="1.000")
 
-# Inisialisasi session state untuk data harga dan keuangan
-if "harga_barang" not in st.session_state:
-    st.session_state.harga_barang = pd.DataFrame(columns=["Nama Barang", "Harga (Rp)"])
+    submit_barang = st.form_submit_button("Tambah / Update Barang")
 
-if "keuangan" not in st.session_state:
-    st.session_state.keuangan = pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk (Rp)", "Keluar (Rp)"])
-
-# --- Bagian Daftar Harga Barang ---
-st.header("Daftar Harga Barang")
-
-with st.form("form_harga"):
-    nama_barang = st.text_input("Nama Barang")
-    harga_str = st.text_input("Harga (Rp)", placeholder="1.000.000")
-    submit_harga = st.form_submit_button("Tambah / Update Harga")
-
-if submit_harga:
+if submit_barang:
     harga = parse_rupiah(harga_str)
-    if not nama_barang:
+    if not nama:
         st.error("Nama barang wajib diisi.")
     elif harga <= 0:
         st.error("Harga harus lebih dari 0.")
     else:
-        df = st.session_state.harga_barang
-        if nama_barang in df["Nama Barang"].values:
-            idx = df.index[df["Nama Barang"] == nama_barang][0]
-            st.session_state.harga_barang.at[idx, "Harga (Rp)"] = harga
-            st.success(f"Harga {nama_barang} diperbarui menjadi Rp {format_rupiah(harga)}")
+        df = st.session_state.barang
+        if nama in df["Nama"].values:
+            idx = df.index[df["Nama"] == nama][0]
+            st.session_state.barang.at[idx, "Stok (pcs)"] += stok
+            st.session_state.barang.at[idx, "Harga per pcs"] = harga
+            st.success("Barang diperbarui.")
         else:
-            new_row = {"Nama Barang": nama_barang, "Harga (Rp)": harga}
-            st.session_state.harga_barang = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            st.success(f"{nama_barang} ditambahkan dengan harga Rp {format_rupiah(harga)}")
+            new = pd.DataFrame([{"Nama": nama, "Stok (pcs)": stok, "Harga per pcs": harga}])
+            st.session_state.barang = pd.concat([df, new], ignore_index=True)
+            st.success("Barang ditambahkan.")
 
-# Tampilkan tabel harga dengan format titik ribuan
-df_display = st.session_state.harga_barang.copy()
-df_display["Harga (Rp)"] = df_display["Harga (Rp)"].apply(format_rupiah)
+        # Bersihkan input
+        st.session_state.nama_barang = ""
+        st.session_state.stok_barang = 0
+        st.session_state.harga_barang = ""
+        st.experimental_rerun()
+
+st.subheader("📋 Daftar Barang")
+df_display = st.session_state.barang.copy()
+df_display["Harga per pcs"] = df_display["Harga per pcs"].apply(format_rupiah)
 st.dataframe(df_display, use_container_width=True)
 
-# --- Bagian Keuangan Harian ---
-st.header("Catatan Keuangan Harian")
-
-with st.form("form_keuangan"):
-    tanggal = st.date_input("Tanggal", date.today())
-    keterangan = st.text_input("Keterangan")
-    masuk_str = st.text_input("Pemasukan (Rp)", placeholder="1.000.000")
-    keluar_str = st.text_input("Pengeluaran (Rp)", placeholder="500.000")
-    submit_keuangan = st.form_submit_button("Catat Keuangan")
-
-if submit_keuangan:
-    masuk = parse_rupiah(masuk_str)
-    keluar = parse_rupiah(keluar_str)
-    if not keterangan:
-        st.error("Keterangan wajib diisi.")
-    elif masuk == 0 and keluar == 0:
-        st.error("Pemasukan atau pengeluaran harus diisi lebih dari 0.")
+# -----------------------------
+st.header("🧾 Penjualan Barang")
+with st.form("form_jual"):
+    if st.session_state.barang.empty:
+        st.warning("Belum ada barang. Tambahkan dulu.")
     else:
+        barang_pilihan = st.selectbox("Pilih Barang", st.session_state.barang["Nama"].tolist(), key="jual_barang")
+        satuan = st.selectbox("Satuan", list(konversi_satuan.keys()), key="jual_satuan")
+        jumlah = st.number_input("Jumlah", min_value=1, step=1, key="jual_jumlah")
+        tgl = st.date_input("Tanggal", date.today())
+        submit_jual = st.form_submit_button("Simpan Penjualan")
+
+if 'submit_jual' in locals() and submit_jual:
+    df = st.session_state.barang
+    idx = df.index[df["Nama"] == barang_pilihan][0]
+    jumlah_pcs = jumlah * konversi_satuan[satuan]
+
+    if df.at[idx, "Stok (pcs)"] < jumlah_pcs:
+        st.error("Stok tidak cukup!")
+    else:
+        harga_pcs = df.at[idx, "Harga per pcs"]
+        total = harga_pcs * jumlah_pcs
+
+        # Kurangi stok
+        st.session_state.barang.at[idx, "Stok (pcs)"] -= jumlah_pcs
+
+        # Simpan transaksi
         new_row = {
-            "Tanggal": tanggal.strftime("%Y-%m-%d"),
-            "Keterangan": keterangan,
-            "Masuk (Rp)": masuk,
-            "Keluar (Rp)": keluar
+            "Tanggal": tgl.strftime("%Y-%m-%d"),
+            "Barang": barang_pilihan,
+            "Jumlah": jumlah,
+            "Satuan": satuan,
+            "Total (Rp)": total
         }
-        st.session_state.keuangan = pd.concat([st.session_state.keuangan, pd.DataFrame([new_row])], ignore_index=True)
-        st.success("Catatan keuangan berhasil ditambahkan.")
+        st.session_state.penjualan = pd.concat([st.session_state.penjualan, pd.DataFrame([new_row])], ignore_index=True)
+        st.success(f"Berhasil menjual {jumlah} {satuan} {barang_pilihan} (Rp {format_rupiah(total)})")
 
-# Tampilkan tabel keuangan dengan format titik ribuan
-df_keu = st.session_state.keuangan.copy()
-df_keu["Masuk (Rp)"] = df_keu["Masuk (Rp)"].apply(format_rupiah)
-df_keu["Keluar (Rp)"] = df_keu["Keluar (Rp)"].apply(format_rupiah)
-st.dataframe(df_keu, use_container_width=True)
+        # Bersihkan input
+        st.session_state.jual_barang = st.session_state.barang["Nama"].iloc[0]
+        st.session_state.jual_satuan = "pcs"
+        st.session_state.jual_jumlah = 1
+        st.experimental_rerun()
 
-# --- Ringkasan Keuangan ---
-st.header("Ringkasan Keuangan")
+# -----------------------------
+st.subheader("🗒️ Riwayat Penjualan")
+if st.session_state.penjualan.empty:
+    st.info("Belum ada penjualan.")
+else:
+    dfjual = st.session_state.penjualan.copy()
+    dfjual["Total (Rp)"] = dfjual["Total (Rp)"].apply(format_rupiah)
+    st.dataframe(dfjual, use_container_width=True)
 
-total_masuk = st.session_state.keuangan["Masuk (Rp)"].sum()
-total_keluar = st.session_state.keuangan["Keluar (Rp)"].sum()
-saldo = total_masuk - total_keluar
-
-st.markdown(f"""
-- **Total Pemasukan:** Rp {format_rupiah(total_masuk)}  
-- **Total Pengeluaran:** Rp {format_rupiah(total_keluar)}  
-- **Saldo:** Rp {format_rupiah(saldo)}
-""")
-st.subheader("Edit Data Keuangan")
-
-if not st.session_state.keuangan.empty:
-    # Buat selectbox untuk pilih baris berdasarkan indeks dan keterangan + tanggal
-    pilihan = st.selectbox(
-        "Pilih catatan yang ingin diedit:",
-        options=st.session_state.keuangan.index,
-        format_func=lambda i: f"{st.session_state.keuangan.at[i, 'Tanggal']} - {st.session_state.keuangan.at[i, 'Keterangan']}"
-    )
-
-    if pilihan is not None:
-        row = st.session_state.keuangan.loc[pilihan]
-
-        with st.form("form_edit_keuangan"):
-            tgl_edit = st.date_input("Tanggal", pd.to_datetime(row["Tanggal"]))
-            ket_edit = st.text_input("Keterangan", row["Keterangan"])
-            masuk_edit_str = st.text_input("Pemasukan (Rp)", format_rupiah(row["Masuk (Rp)"]))
-            keluar_edit_str = st.text_input("Pengeluaran (Rp)", format_rupiah(row["Keluar (Rp)"]))
-            submit_edit = st.form_submit_button("Simpan Perubahan")
-
-        if submit_edit:
-            masuk_edit = parse_rupiah(masuk_edit_str)
-            keluar_edit = parse_rupiah(keluar_edit_str)
-            if not ket_edit:
-                st.error("Keterangan wajib diisi.")
-            elif masuk_edit == 0 and keluar_edit == 0:
-                st.error("Pemasukan atau pengeluaran harus diisi lebih dari 0.")
-            else:
-                # Update data
-                st.session_state.keuangan.at[pilihan, "Tanggal"] = tgl_edit.strftime("%Y-%m-%d")
-                st.session_state.keuangan.at[pilihan, "Keterangan"] = ket_edit
-                st.session_state.keuangan.at[pilihan, "Masuk (Rp)"] = masuk_edit
-                st.session_state.keuangan.at[pilihan, "Keluar (Rp)"] = keluar_edit
-                st.success("Data keuangan berhasil diperbarui.")
+    total_semua = st.session_state.penjualan["Total (Rp)"].sum()
+    st.markdown(f"### 💰 Total Penjualan: Rp {format_rupiah(total_semua)}")
