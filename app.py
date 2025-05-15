@@ -117,3 +117,8 @@ elif menu == "Stok Barang" and role == "admin":
 elif menu == "Riwayat Penjualan" and role == "admin":
     st.title("Riwayat Penjualan")
     st.dataframe(st.session_state.penjualan_data)
+# Tombol logout manual sementara
+if st.sidebar.button("Logout"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.rerun()
