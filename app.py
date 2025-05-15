@@ -1,87 +1,85 @@
 import streamlit as st
 import pandas as pd
-import datetime
-from io import BytesIO
+from datetime import datetime
+import io
 
-st.set_page_config(page_title="Manajemen Toko", layout="wide")
-st.title("📦 Aplikasi Manajemen Toko Sederhana")
+st.set_page_config(page_title="Aplikasi Kasir & Stok Toko", layout="wide")
 
-if "keuangan" not in st.session_state:
-    st.session_state.keuangan = []
-if "stok" not in st.session_state:
-    st.session_state.stok = []
-if "karyawan" not in st.session_state:
-    st.session_state.karyawan = []
-if "penjualan" not in st.session_state:
-    st.session_state.penjualan = []
+# --- Load data dari session_state atau buat baru ---
+if 'stok_data' not in st.session_state:
+    st.session_state.stok_data = pd.DataFrame(columns=["Tanggal", "Nama Barang", "Masuk", "Keluar", "Sisa"])
+if 'penjualan_data' not in st.session_state:
+    st.session_state.penjualan_data = pd.DataFrame(columns=["Tanggal", "Nama Barang", "Jumlah", "Harga Satuan", "Total"])
 
-menu = st.sidebar.radio("Menu", ["Penjualan", "Keuangan", "Stok Barang", "Karyawan", "Laporan"])
-
-def download_excel(data, filename):
-    output = BytesIO()
-    df = pd.DataFrame(data)
+# --- Fungsi ekspor ke Excel ---
+def export_excel(df):
+    output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Data")
-    st.download_button("📥 Download ke Excel", output.getvalue(), file_name=filename, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        df.to_excel(writer, index=False)
+    return output.getvalue()
 
-# ✅ PENJUALAN
-if menu == "Penjualan":
-    st.header("🧾 Cetak Nota Penjualan")
+# --- Sidebar Menu ---
+menu = st.sidebar.selectbox("Menu", ["Input Penjualan", "Stok Barang", "Riwayat Penjualan"])
+
+# --- Halaman Penjualan ---
+if menu == "Input Penjualan":
+    st.title("Input Penjualan Barang")
     with st.form("form_penjualan"):
-        tanggal = st.date_input("Tanggal", datetime.date.today())
-        nama_pembeli = st.text_input("Nama Pembeli")
         nama_barang = st.text_input("Nama Barang")
-        harga = st.number_input("Harga Satuan", min_value=0, step=1000)
-        jumlah = st.number_input("Jumlah", min_value=1)
-        total = harga * jumlah
-        keterangan = st.text_input("Keterangan tambahan (opsional)")
-        submitted = st.form_submit_button("Simpan Transaksi")
-        if submitted:
-            st.session_state.penjualan.append({
-                "Tanggal": tanggal,
-                "Pembeli": nama_pembeli,
-                "Barang": nama_barang,
-                "Harga Satuan": harga,
-                "Jumlah": jumlah,
-                "Total": total,
-                "Keterangan": keterangan
-            })
-            st.success("Transaksi disimpan!")
+        jumlah = st.number_input("Jumlah", min_value=1, step=1)
+        harga = st.number_input("Harga Satuan", min_value=0, step=100)
+        submit = st.form_submit_button("Simpan Penjualan")
 
-    if st.session_state.penjualan:
-        st.subheader("Riwayat Penjualan Hari Ini")
-        df_penjualan = pd.DataFrame(st.session_state.penjualan)
-        st.dataframe(df_penjualan)
-        download_excel(st.session_state.penjualan, "penjualan.xlsx")
+    if submit and nama_barang and jumlah:
+        total = jumlah * harga
+        tanggal = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        st.subheader("🖨️ Cetak Nota")
-        for i, trx in enumerate(reversed(st.session_state.penjualan[-5:])):
-            nota = f"""
-=========================
-      NOTA PENJUALAN
-=========================
-Tanggal    : {trx['Tanggal']}
-Pembeli    : {trx['Pembeli']}
-Barang     : {trx['Barang']}
-Harga      : Rp {trx['Harga Satuan']:,.0f}
-Jumlah     : {trx['Jumlah']}
--------------------------
-Total Bayar: Rp {trx['Total']:,.0f}
-{f"Keterangan : " + trx['Keterangan'] if trx['Keterangan'] else ""}
-=========================
-Terima kasih 🙏
-"""
-            st.code(nota, language="text")
+        # Simpan penjualan
+        new_row = pd.DataFrame([[tanggal, nama_barang, jumlah, harga, total]],
+                               columns=st.session_state.penjualan_data.columns)
+        st.session_state.penjualan_data = pd.concat([st.session_state.penjualan_data, new_row], ignore_index=True)
 
-# 💰 KEUANGAN
-elif menu == "Keuangan":
-    st.header("💰 Catatan Keuangan Harian")
-    with st.form("form_keuangan"):
-        tanggal = st.date_input("Tanggal", datetime.date.today())
-        uraian = st.text_input("Uraian")
-        pemasukan = st.number_input("Pemasukan (Rp)", min_value=0, step=1000)
-        pengeluaran = st.number_input("Pengeluaran (Rp)", min_value=0, step=1000)
-        keterangan = st.text_input("Keterangan")
-        submitted = st.form_submit_button("Simpan")
-        if submitted:
-            st.session_state.ke_
+        # Otomatis kurangi stok
+        stok_df = st.session_state.stok_data
+        barang_mask = stok_df["Nama Barang"].str.lower() == nama_barang.lower()
+
+        if barang_mask.any():
+            idx = stok_df[barang_mask].index[-1]
+            stok_df.at[idx, "Keluar"] += jumlah
+            stok_df.at[idx, "Sisa"] = stok_df.at[idx, "Masuk"] - stok_df.at[idx, "Keluar"]
+            st.success(f"Stok untuk '{nama_barang}' dikurangi otomatis.")
+        else:
+            st.warning(f"Barang '{nama_barang}' belum ada di data stok!")
+
+    st.subheader("Riwayat Penjualan Hari Ini")
+    st.dataframe(st.session_state.penjualan_data)
+
+    st.download_button("Download Penjualan Excel", export_excel(st.session_state.penjualan_data), file_name="penjualan.xlsx")
+
+# --- Halaman Stok Barang ---
+elif menu == "Stok Barang":
+    st.title("Manajemen Stok Barang")
+    with st.form("form_stok"):
+        tanggal = st.date_input("Tanggal Input", datetime.today())
+        nama_barang = st.text_input("Nama Barang Baru")
+        masuk = st.number_input("Jumlah Masuk", min_value=1, step=1)
+        simpan = st.form_submit_button("Simpan")
+
+    if simpan and nama_barang:
+        tanggal_str = tanggal.strftime("%Y-%m-%d")
+        new_row = pd.DataFrame([[tanggal_str, nama_barang, masuk, 0, masuk]],
+                               columns=st.session_state.stok_data.columns)
+        st.session_state.stok_data = pd.concat([st.session_state.stok_data, new_row], ignore_index=True)
+        st.success("Data stok disimpan.")
+
+    st.subheader("Daftar Stok Barang")
+    st.dataframe(st.session_state.stok_data)
+
+    st.download_button("Download Stok Excel", export_excel(st.session_state.stok_data), file_name="stok_barang.xlsx")
+
+# --- Halaman Riwayat ---
+elif menu == "Riwayat Penjualan":
+    st.title("Riwayat Penjualan Lengkap")
+    st.dataframe(st.session_state.penjualan_data)
+    st.download_button("Download Semua Penjualan", export_excel(st.session_state.penjualan_data), file_name="riwayat_penjualan.xlsx")
+
